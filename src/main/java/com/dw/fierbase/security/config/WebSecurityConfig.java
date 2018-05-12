@@ -55,6 +55,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
       .csrf()
           .disable()
       .authorizeRequests()
+          .antMatchers("/instruments","/zerodha-login","/zerodha-callback").permitAll()
           .anyRequest().authenticated()
           .and()
       .sessionManagement()
