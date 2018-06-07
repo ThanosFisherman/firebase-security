@@ -69,7 +69,7 @@ public class FirebaseAuthenticationFilter implements Filter {
       logger.debug("Invalid authentication for token: {}.", obfuscateToken, ex);
     } catch (Exception ex) {
       httpResponse.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-      logger.error("Authentication error for token: {}”.", obfuscateToken, ex);
+      logger.error("Authentication error for token: {}.", obfuscateToken, ex);
       return;
     }
 
