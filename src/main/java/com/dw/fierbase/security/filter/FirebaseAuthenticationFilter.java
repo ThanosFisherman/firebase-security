@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
@@ -61,19 +62,28 @@ public class FirebaseAuthenticationFilter implements Filter {
 
     try {
       Authentication authentication = getAndValidateAuthentication(authToken);
-
       SecurityContextHolder.getContext().setAuthentication(authentication);
+
       logger.debug("doFilter():: Succeed authentication for token: {}", obfuscateToken);
-    } catch (FirebaseAuthException ex) {
-      httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-      logger.debug("Invalid authentication for token: {}.", obfuscateToken, ex);
+      chain.doFilter(request, response);
     } catch (Exception ex) {
+      // check root cuase is FirebaseAuthException
+      Throwable exception = ExceptionUtils.getRootCause(ex);
+      if (exception instanceof FirebaseAuthException) {
+        FirebaseAuthException firebaseAuthEx = (FirebaseAuthException) exception;
+
+        // check error code os not 'ERROR_INVALID_CREDENTIAL'
+        if (!StringUtils.equals(firebaseAuthEx.getErrorCode(), "ERROR_INVALID_CREDENTIAL")) {
+          httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+          logger.debug("Invalid authentication for token: {}.", obfuscateToken, ex);
+          return;
+        }
+      }
+
       httpResponse.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
       logger.error("Authentication error for token: {}.", obfuscateToken, ex);
       return;
     }
-
-    chain.doFilter(request, response);
   }
 
   private Authentication getAndValidateAuthentication(String authToken) throws Exception {
