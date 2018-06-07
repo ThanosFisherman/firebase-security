@@ -2,6 +2,7 @@ package com.dw.fierbase.security.filter;
 
 import com.google.api.core.ApiFuture;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
 
 import org.apache.commons.lang3.StringUtils;
@@ -33,7 +34,7 @@ public class FirebaseAuthenticationFilter implements Filter {
   private static final String CACHE_FIREBASE_ID_TOKEN = "firebaseIdToken";
 
   private CacheManager cacheManager;
-  
+
   public FirebaseAuthenticationFilter(CacheManager cacheManager) {
     this.cacheManager = cacheManager;
   }
@@ -46,23 +47,30 @@ public class FirebaseAuthenticationFilter implements Filter {
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException {
-    logger.debug("doFilter:: athenticating...");
-
     HttpServletRequest httpRequest = (HttpServletRequest) request;
     String authToken = httpRequest.getHeader(TOKEN_HEADER);
+
     if (StringUtils.isBlank(authToken)) {
+      logger.debug("Authentication token is null or blank.");
       chain.doFilter(request, response);
       return;
     }
 
+    String obfuscateToken = StringUtils.abbreviateMiddle(authToken, "...", 53);
+    HttpServletResponse httpResponse = (HttpServletResponse) response;
+
     try {
-      Authentication  authentication = getAndValidateAuthentication(authToken);
+      Authentication authentication = getAndValidateAuthentication(authToken);
+
       SecurityContextHolder.getContext().setAuthentication(authentication);
-      logger.debug("doFilter():: successfully authenticated.");
-    } catch (Exception ex) {
-      HttpServletResponse httpResponse = (HttpServletResponse) response;
+      logger.debug("doFilter():: Succeed authentication for token: {}", obfuscateToken);
+    } catch (FirebaseAuthException ex) {
       httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-      logger.debug("Fail to authenticate.", ex);
+      logger.debug("Invalid authentication for token: {}.", obfuscateToken, ex);
+    } catch (Exception ex) {
+      httpResponse.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      logger.error("Authentication error for token: {}”.", obfuscateToken, ex);
+      return;
     }
 
     chain.doFilter(request, response);
